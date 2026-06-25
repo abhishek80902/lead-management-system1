@@ -95,6 +95,7 @@ app.post("/api/leads", async (req, res) => {
       });
     }
 
+    // Save lead first
     const lead = await Lead.create({
       name,
       email,
@@ -103,67 +104,65 @@ app.post("/api/leads", async (req, res) => {
       requirement,
     });
 
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    });
-
-    const openUrl = `${process.env.BASE_URL}/open/${lead._id}`;
-
-    const clickUrl = `${process.env.BASE_URL}/click/${lead._id}`;
-
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: lead.email,
-      subject: "Thank You For Contacting Us",
-      html: `
-        <h2>Hi ${lead.name} 👋</h2>
-
-        <p>Thank you for reaching out.</p>
-
-        <p>
-          We received your requirement:
-        </p>
-
-        <blockquote>
-          ${lead.requirement}
-        </blockquote>
-
-        <p>
-          Click below to learn more:
-        </p>
-
-        <a href="${clickUrl}">
-          Learn More
-        </a>
-
-        <img
-          src="${openUrl}"
-          width="1"
-          height="1"
-          style="display:none;"
-        />
-      `,
-    });
-
-    lead.emailSent = true;
-
-    await lead.save();
-
+    // Return success immediately
     res.status(201).json({
       success: true,
       message: "Lead Created Successfully",
       lead,
     });
+
+    // Email runs in background
+    try {
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS,
+        },
+      });
+
+      const openUrl = `${process.env.BASE_URL}/open/${lead._id}`;
+      const clickUrl = `${process.env.BASE_URL}/click/${lead._id}`;
+
+      await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: lead.email,
+        subject: "Thank You For Contacting Us",
+        html: `
+          <h2>Hi ${lead.name} 👋</h2>
+
+          <p>Thank you for reaching out.</p>
+
+          <p>We received your requirement:</p>
+
+          <blockquote>${lead.requirement}</blockquote>
+
+          <a href="${clickUrl}">Learn More</a>
+
+          <img
+            src="${openUrl}"
+            width="1"
+            height="1"
+            style="display:none;"
+          />
+        `,
+      });
+
+      lead.emailSent = true;
+      await lead.save();
+
+      console.log("Email sent successfully");
+
+    } catch (emailError) {
+      console.log("Email Error:", emailError.message);
+    }
+
   } catch (error) {
     console.log(error);
 
     res.status(500).json({
       success: false,
-      message: "Server Error",
+      message: error.message,
     });
   }
 });
